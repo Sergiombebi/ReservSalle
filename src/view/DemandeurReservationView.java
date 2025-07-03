@@ -103,6 +103,14 @@ public class DemandeurReservationView extends JFrame {
         Utilisateur user = new ReservationDAO().getUtilisateurParId(utilisateurId);
         String nom = (user != null) ? user.getNom() : "inconnu";
         JLabel userIcon = new JLabel("👤 Utilisateur : " + nom);
+        JButton logoutButton = createStyledButton("Déconnexion", new Color(231, 76, 60));
+        logoutButton.setPreferredSize(new Dimension(130, 30));
+        logoutButton.setFont(new Font("Segoe UI", Font.BOLD, 12));
+        logoutButton.addActionListener(e -> {
+            dispose(); // Fermer la vue actuelle
+            new ConnexionView().setVisible(true); // Retour à la vue de connexion
+        });
+
         userIcon.setFont(new Font("Segoe UI", Font.BOLD, 16));
 
         userIcon.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -110,7 +118,13 @@ public class DemandeurReservationView extends JFrame {
         userIcon.setHorizontalAlignment(SwingConstants.RIGHT);
 
         header.add(titlePanel, BorderLayout.WEST);
-        header.add(userIcon, BorderLayout.EAST);
+        JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        rightPanel.setBackground(PRIMARY_COLOR);
+        rightPanel.add(userIcon);
+        rightPanel.add(Box.createHorizontalStrut(15));
+        rightPanel.add(logoutButton);
+        header.add(rightPanel, BorderLayout.EAST);
+
 
         return header;
     }
@@ -168,7 +182,7 @@ public class DemandeurReservationView extends JFrame {
         JButton reserverBtn = createStyledButton("Réserver", ACCENT_COLOR);
         reserverBtn.setFont(new Font("Segoe UI", Font.BOLD, 14));
         reserverBtn.addActionListener(e -> effectuerReservation());
-        // Bouton annuler
+
         JButton annulerBtn = createStyledButton("❌ Annuler", new Color(231, 76, 60));
         annulerBtn.addActionListener(e -> {
             try {
@@ -178,8 +192,18 @@ public class DemandeurReservationView extends JFrame {
             }
         });
 
+        JButton modifierBtn = createStyledButton("✏️ Modifier", new Color(241, 196, 15));
+        modifierBtn.addActionListener(e -> modifierReservation());
 
-        formPanel.add(reserverBtn, gbc);
+// Créer le panneau des boutons avec 3 lignes (pas 2 !)
+        JPanel boutonPanel = new JPanel(new GridLayout(3, 1, 5, 5));
+        boutonPanel.setBackground(CARD_COLOR);
+        boutonPanel.add(reserverBtn);
+        boutonPanel.add(annulerBtn);
+        boutonPanel.add(modifierBtn);
+
+// Ajouter le panneau de boutons au formulaire
+        formPanel.add(boutonPanel, gbc);
 
         // Charger les salles
         List<Salle> salles = new SalleDAO().getAll();
@@ -196,6 +220,60 @@ public class DemandeurReservationView extends JFrame {
 
         return formCard;
     }
+
+    private void modifierReservation() {
+        int selectedRow = table.getSelectedRow();
+        if (selectedRow == -1) {
+            showStyledMessage("Veuillez sélectionner une réservation à modifier.", "Alerte", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String etat = model.getValueAt(selectedRow, 4).toString().toLowerCase();
+        if (!etat.equals("en_attente")) {
+            showStyledMessage("Seules les réservations en attente peuvent être modifiées.", "Interdit", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        // Pré-remplir les champs
+        salleCombo.setSelectedItem(obtenirSalleParNom(model.getValueAt(selectedRow, 0).toString()));
+        dateField.setText(model.getValueAt(selectedRow, 1).toString());
+        debutField.setText(model.getValueAt(selectedRow, 2).toString());
+        finField.setText(model.getValueAt(selectedRow, 3).toString());
+
+        // Supprimer l'ancienne réservation (temporairement)
+        String salleNom = model.getValueAt(selectedRow, 0).toString();
+        String date = model.getValueAt(selectedRow, 1).toString();
+        String debut = model.getValueAt(selectedRow, 2).toString();
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Souhaitez-vous réellement modifier cette réservation ?\nL'ancienne sera supprimée.",
+                "Confirmation", JOptionPane.YES_NO_OPTION);
+
+        if (confirm == JOptionPane.YES_OPTION) {
+            try {
+                ReservationDAO dao = new ReservationDAO();
+                boolean ok = dao.supprimerReservation(utilisateurId, salleNom, date, debut);
+                if (ok) {
+                    showStyledMessage("Ancienne réservation supprimée. Modifiez les champs et cliquez sur Réserver.", "Info", JOptionPane.INFORMATION_MESSAGE);
+                    loadReservations();
+                }
+            } catch (SQLException e) {
+                showStyledMessage("Erreur SQL : " + e.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+
+    private Salle obtenirSalleParNom(String nom) {
+        for (int i = 0; i < salleCombo.getItemCount(); i++) {
+            Salle s = salleCombo.getItemAt(i);
+            if (s.getNom().equalsIgnoreCase(nom)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
+
 
     private JPanel createResourcesPanel() throws SQLException {
         JPanel resourcesCard = new JPanel(new BorderLayout());

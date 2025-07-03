@@ -210,10 +210,59 @@ public class ReservationDAO {
         return list;
     }
 
+    public List<Reservation> getAllReservations() throws SQLException {
+        List<Reservation> liste = new ArrayList<>();
+        String sql = "SELECT r.id, u.nom AS nom_utilisateur, s.nom AS nom_salle, r.date, r.heure_debut, r.heure_fin, r.etat " +
+                "FROM reservation r " +
+                "JOIN utilisateur u ON r.id_utilisateur = u.id " +
+                "JOIN salle s ON r.id_salle = s.id";
+
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql);
+             ResultSet rs = stmt.executeQuery()) {
+
+            while (rs.next()) {
+                Reservation r = new Reservation();
+                r.setId(rs.getInt("id"));
+                r.setnom(rs.getString("nom_utilisateur"));
+                r.setNomSalle(rs.getString("nom_salle"));
+                r.setDate(rs.getDate("date").toLocalDate());
+                r.setHeureDebut(rs.getTime("heure_debut").toLocalTime());
+                r.setHeureFin(rs.getTime("heure_fin").toLocalTime());
+                r.setEtat(rs.getString("etat"));
+                liste.add(r);
+            }
+        }
+
+        return liste;
+    }
 
 
+    public List<Reservation> getReservationsParSalle(String nomSalle) throws SQLException {
+        List<Reservation> list = new ArrayList<>();
+        String sql = "SELECT r.*, u.nom AS nomUtilisateur, s.nom AS nomSalle " +
+                "FROM reservation r " +
+                "JOIN utilisateur u ON r.id_utilisateur = u.id " +
+                "JOIN salle s ON r.id_salle = s.id " +
+                "WHERE s.nom = ? ORDER BY r.date, r.heure_debut";
 
+        PreparedStatement stmt = DatabaseManager.getConnection().prepareStatement(sql);
+        stmt.setString(1, nomSalle);
+        ResultSet rs = stmt.executeQuery();
 
+        while (rs.next()) {
+            Reservation r = new Reservation();
+            r.setId(rs.getInt("id"));
+            r.setDate(rs.getDate("date").toLocalDate());
+             r.setHeureDebut(rs.getTime("heure_debut").toLocalTime());
+             r.setHeureFin(rs.getTime("heure_fin").toLocalTime());
+            r.setEtat(rs.getString("etat"));
+            r.setnom(rs.getString("nomUtilisateur"));
+            r.setNomSalle(rs.getString("nomSalle"));
+            list.add(r);
+        }
 
+        return list;
+    }
 
 }

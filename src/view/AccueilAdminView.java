@@ -1,8 +1,10 @@
 package view;
 
 import dao.DatabaseManager;
+import dao.ReservationDAO;
 import dao.RessourceDAO;
 import dao.SalleDAO;
+import model.Reservation;
 import model.Ressource;
 import model.Salle;
 
@@ -49,6 +51,8 @@ public class AccueilAdminView extends JFrame {
         tabbedPane.addTab("🏢 Salles", createSallesPanel());
         tabbedPane.addTab("📦 Ressources", createRessourcesPanel());
         tabbedPane.addTab("📋 Réservations", createReservationsPanel());
+        tabbedPane.addTab("🗓 Calendrier par Salle", createCalendrierPanel());
+
 
 
 
@@ -56,10 +60,24 @@ public class AccueilAdminView extends JFrame {
         mainPanel.setBackground(new Color(240, 240, 240));
         mainPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
 
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(new Color(240, 240, 240));
+
         JLabel titleLabel = new JLabel("Tableau de bord Administrateur", SwingConstants.CENTER);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
         titleLabel.setForeground(new Color(70, 70, 70));
-        mainPanel.add(titleLabel, BorderLayout.NORTH);
+
+        JButton logoutBtn = createStyledButton("Déconnexion", new Color(192, 57, 43));
+        logoutBtn.setPreferredSize(new Dimension(130, 35));
+        logoutBtn.addActionListener(e -> {
+            dispose(); // Ferme cette fenêtre
+            new ConnexionView().setVisible(true); // Redirige vers la vue de connexion
+        });
+
+        headerPanel.add(titleLabel, BorderLayout.CENTER);
+        headerPanel.add(logoutBtn, BorderLayout.EAST);
+        mainPanel.add(headerPanel, BorderLayout.NORTH);
+
 
         mainPanel.add(tabbedPane, BorderLayout.CENTER);
 
@@ -71,6 +89,56 @@ public class AccueilAdminView extends JFrame {
         add(mainPanel);
         setVisible(true);
     }
+
+    private JPanel createCalendrierPanel() throws SQLException {
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        JLabel salleLabel = new JLabel("Sélectionner une salle:");
+        JComboBox<String> salleCombo = new JComboBox<>();
+
+        DefaultTableModel model = new DefaultTableModel(new String[]{
+                "Date", "Début", "Fin", "Réservé par", "État"
+        }, 0);
+        JTable calendarTable = new JTable(model);
+        JScrollPane scrollPane = new JScrollPane(calendarTable);
+
+        topPanel.add(salleLabel);
+        topPanel.add(salleCombo);
+        panel.add(topPanel, BorderLayout.NORTH);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Remplir les salles
+        SalleDAO salleDAO = new SalleDAO();
+        List<Salle> salles = salleDAO.getAll();
+        for (Salle s : salles) {
+            salleCombo.addItem(s.getNom());
+        }
+
+        // Écouteur pour afficher les réservations
+        salleCombo.addActionListener(e -> {
+            String nomSalle = (String) salleCombo.getSelectedItem();
+            if (nomSalle == null) return;
+
+            try {
+                ReservationDAO reservationDAO = new ReservationDAO();
+                List<Reservation> reservations = reservationDAO.getReservationsParSalle(nomSalle);
+
+                model.setRowCount(0); // Vider le tableau
+                for (Reservation r : reservations) {
+                    model.addRow(new Object[]{
+                            r.getDate(), r.getHeureDebut(), r.getHeureFin(), r.getnom(), r.getEtat()
+                    });
+                }
+            } catch (SQLException ex) {
+                JOptionPane.showMessageDialog(this, "Erreur : " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+            }
+        });
+
+        return panel;
+    }
+
 
     private JPanel createUsersPanel() {
         JPanel panel = new JPanel(new BorderLayout());
@@ -733,9 +801,43 @@ public class AccueilAdminView extends JFrame {
 
 
     private JPanel createReservationsPanel() {
-        // Implémentation similaire avec connexion à la base de données
-        return new JPanel();
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBorder(new EmptyBorder(10, 10, 10, 10));
+
+        DefaultTableModel reservationModel = new DefaultTableModel(new String[]{
+                "Utilisateur", "Salle", "Date", "Début", "Fin", "État"
+        }, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable table = new JTable(reservationModel);
+        table.setFillsViewportHeight(true);
+        JScrollPane scrollPane = new JScrollPane(table);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        try {
+            ReservationDAO reservationDAO = new ReservationDAO();
+            List<Reservation> reservations = reservationDAO.getAllReservations();
+            for (Reservation r : reservations) {
+                reservationModel.addRow(new Object[]{
+                        r.getnom(),
+                        r.getNomSalle(),
+                        r.getDate(),
+                        r.getHeureDebut(),
+                        r.getHeureFin(),
+                        r.getEtat()
+                });
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Erreur lors du chargement des réservations : " + e.getMessage());
+        }
+
+        return panel;
     }
+
 
     private JButton createStyledButton(String text, Color bgColor) {
         JButton button = new JButton(text);
@@ -756,23 +858,5 @@ public class AccueilAdminView extends JFrame {
         });
 
         return button;
-    }
-
-    public static void main(String[] args) {
-        // Charger le driver JDBC
-        try {
-            Class.forName("com.mysql.cj.jdbc.Driver");
-        } catch (ClassNotFoundException e) {
-            System.err.println("Erreur: Driver JDBC MySQL non trouvé");
-            System.exit(1);
-        }
-
-        SwingUtilities.invokeLater(() -> {
-            try {
-                new AccueilAdminView();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
-        });
     }
 }
