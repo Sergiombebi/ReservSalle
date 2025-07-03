@@ -25,6 +25,17 @@ public class NavigationController {
                     JOptionPane.ERROR_MESSAGE);
         }
     }
+    public static void showDemandeurAccueil(int utilisateurId) throws SQLException {
+        closeCurrentView();
+        currentView = new DemandeurReservationView(utilisateurId);
+        currentView.setVisible(true);
+    }
+    public static void showResponsableDashboard(int utilisateurId) throws SQLException {
+        closeCurrentView();
+        currentView = new ResponsableDashboardView();
+        currentView.setVisible(true);
+    }
+
 
 
     public static void showSalleGestion() {

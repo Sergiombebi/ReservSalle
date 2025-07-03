@@ -1,7 +1,9 @@
 package view;
 
 import dao.DatabaseManager;
+import dao.RessourceDAO;
 import dao.SalleDAO;
+import model.Ressource;
 import model.Salle;
 
 import javax.swing.*;
@@ -43,10 +45,12 @@ public class AccueilAdminView extends JFrame {
         }
 
         JTabbedPane tabbedPane = new JTabbedPane();
-        tabbedPane.addTab("Utilisateurs", createUsersPanel());
-        tabbedPane.addTab("Salles", createSallesPanel());
-        tabbedPane.addTab("Ressources", createRessourcesPanel());
-        tabbedPane.addTab("Réservations", createReservationsPanel());
+        tabbedPane.addTab("👥 Utilisateurs", createUsersPanel());
+        tabbedPane.addTab("🏢 Salles", createSallesPanel());
+        tabbedPane.addTab("📦 Ressources", createRessourcesPanel());
+        tabbedPane.addTab("📋 Réservations", createReservationsPanel());
+
+
 
         JPanel mainPanel = new JPanel(new BorderLayout());
         mainPanel.setBackground(new Color(240, 240, 240));
@@ -346,25 +350,39 @@ public class AccueilAdminView extends JFrame {
     // Méthodes pour les autres onglets (à implémenter de manière similaire)
     private JPanel createSallesPanel() throws SQLException {
         JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(new Color(245, 245, 250)); // couleur claire moderne
+
         SalleDAO salleDAO = new SalleDAO();
 
-        DefaultTableModel salleModel = new DefaultTableModel(new String[]{"ID", "Nom", "Capacité", "Type"}, 0);
+        DefaultTableModel salleModel = new DefaultTableModel(new String[]{"ID", "Nom", "Capacité", "Type"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false; // empêcher l'édition directe
+            }
+        };
         JTable table = new JTable(salleModel);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
+        table.setFillsViewportHeight(true);
 
-        for (Salle s : salleDAO.getAll()) {
-            salleModel.addRow(new Object[]{s.getId(), s.getNom(), s.getCapacite(), s.getType()});
-        }
+        // Charger les salles
+        loadSalles(salleDAO, salleModel);
 
         JScrollPane scrollPane = new JScrollPane(table);
         panel.add(scrollPane, BorderLayout.CENTER);
 
-        JButton addBtn = new JButton("Ajouter");
+        // Boutons Ajouter, Modifier, Supprimer
+        JButton addBtn = createStyledButton("Ajouter", new Color(46, 204, 113));      // vert
+        JButton editBtn = createStyledButton("Modifier", new Color(52, 152, 219));    // bleu
+        JButton deleteBtn = createStyledButton("Supprimer", new Color(231, 76, 60));  // rouge
+
+        // Ajout
         addBtn.addActionListener(e -> {
             JTextField nomField = new JTextField();
             JTextField capaciteField = new JTextField();
             JTextField typeField = new JTextField();
 
-            JPanel form = new JPanel(new GridLayout(0, 1));
+            JPanel form = new JPanel(new GridLayout(0, 1, 5, 5));
             form.add(new JLabel("Nom:"));
             form.add(nomField);
             form.add(new JLabel("Capacité:"));
@@ -372,35 +390,347 @@ public class AccueilAdminView extends JFrame {
             form.add(new JLabel("Type:"));
             form.add(typeField);
 
-            int res = JOptionPane.showConfirmDialog(this, form, "Ajouter Salle", JOptionPane.OK_CANCEL_OPTION);
+            int res = JOptionPane.showConfirmDialog(this, form, "Ajouter Salle", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
             if (res == JOptionPane.OK_OPTION) {
                 try {
                     int capacite = Integer.parseInt(capaciteField.getText().trim());
-                    Salle salle = new Salle(0, nomField.getText(), capacite, typeField.getText());
+                    Salle salle = new Salle(0, nomField.getText().trim(), capacite, typeField.getText().trim());
                     if (salleDAO.insert(salle)) {
-                        salleModel.setRowCount(0);
-                        for (Salle s : salleDAO.getAll()) {
-                            salleModel.addRow(new Object[]{s.getId(), s.getNom(), s.getCapacite(), s.getType()});
-                        }
+                        loadSalles(salleDAO, salleModel);
+                        JOptionPane.showMessageDialog(this, "Salle ajoutée avec succès", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Erreur lors de l'ajout", "Erreur", JOptionPane.ERROR_MESSAGE);
                     }
                 } catch (NumberFormatException ex) {
-                    JOptionPane.showMessageDialog(this, "Capacité invalide");
+                    JOptionPane.showMessageDialog(this, "Capacité invalide (doit être un nombre entier)", "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        // Modification
+        editBtn.addActionListener(e -> {
+            int selectedRow = table.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(this, "Veuillez sélectionner une salle à modifier", "Aucune sélection", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int id = (int) salleModel.getValueAt(selectedRow, 0);
+            String nom = (String) salleModel.getValueAt(selectedRow, 1);
+            int capacite = (int) salleModel.getValueAt(selectedRow, 2);
+            String type = (String) salleModel.getValueAt(selectedRow, 3);
+
+            JTextField nomField = new JTextField(nom);
+            JTextField capaciteField = new JTextField(String.valueOf(capacite));
+            JTextField typeField = new JTextField(type);
+
+            JPanel form = new JPanel(new GridLayout(0, 1, 5, 5));
+            form.add(new JLabel("Nom:"));
+            form.add(nomField);
+            form.add(new JLabel("Capacité:"));
+            form.add(capaciteField);
+            form.add(new JLabel("Type:"));
+            form.add(typeField);
+
+            int res = JOptionPane.showConfirmDialog(this, form, "Modifier Salle", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (res == JOptionPane.OK_OPTION) {
+                try {
+                    int newCapacite = Integer.parseInt(capaciteField.getText().trim());
+                    Salle salleModifiee = new Salle(id, nomField.getText().trim(), newCapacite, typeField.getText().trim());
+
+                    // On fait une mise à jour via DAO (à créer)
+                    if (updateSalle(salleDAO, salleModifiee)) {
+                        loadSalles(salleDAO, salleModel);
+                        JOptionPane.showMessageDialog(this, "Salle modifiée avec succès", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Erreur lors de la modification", "Erreur", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this, "Capacité invalide (doit être un nombre entier)", "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        // Suppression
+        deleteBtn.addActionListener(e -> {
+            int selectedRow = table.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(this, "Veuillez sélectionner une salle à supprimer", "Aucune sélection", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int id = (int) salleModel.getValueAt(selectedRow, 0);
+            String nom = (String) salleModel.getValueAt(selectedRow, 1);
+
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    "Êtes-vous sûr de vouloir supprimer la salle \"" + nom + "\" ?",
+                    "Confirmation de suppression",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    if (deleteSalle(salleDAO, id)) {
+                        loadSalles(salleDAO, salleModel);
+                        JOptionPane.showMessageDialog(this, "Salle supprimée avec succès", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Erreur lors de la suppression", "Erreur", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Erreur SQL: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
                 }
             }
         });
 
         JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        footer.setBackground(new Color(245, 245, 250));
         footer.add(addBtn);
+        footer.add(editBtn);
+        footer.add(deleteBtn);
         panel.add(footer, BorderLayout.SOUTH);
 
         return panel;
     }
 
-
-    private JPanel createRessourcesPanel() {
-        // Implémentation similaire avec connexion à la base de données
-        return new JPanel();
+    // Méthode pour charger les salles dans le modèle de tableau
+    private void loadSalles(SalleDAO salleDAO, DefaultTableModel salleModel) {
+        salleModel.setRowCount(0);
+        for (Salle s : salleDAO.getAll()) {
+            salleModel.addRow(new Object[]{s.getId(), s.getNom(), s.getCapacite(), s.getType()});
+        }
     }
+
+    // Méthode pour mettre à jour une salle
+    private boolean updateSalle(SalleDAO salleDAO, Salle salle) {
+        // Implémente dans SalleDAO une méthode update() puis appelle ici
+        return salleDAO.update(salle);
+    }
+
+    // Méthode pour supprimer une salle
+    private boolean deleteSalle(SalleDAO salleDAO, int idSalle) throws SQLException {
+        return salleDAO.delete(idSalle);
+    }
+
+
+
+    private JPanel createRessourcesPanel() throws SQLException {
+        JPanel panel = new JPanel(new BorderLayout());
+        panel.setBackground(new Color(245, 245, 250)); // fond clair
+
+        RessourceDAO ressourceDAO = new RessourceDAO();
+
+        DefaultTableModel ressourceModel = new DefaultTableModel(new String[]{"ID", "Nom", "Description", "Quantité", "État"}, 0) {
+            @Override
+            public boolean isCellEditable(int row, int column) {
+                return false;
+            }
+        };
+
+        JTable table = new JTable(ressourceModel);
+        table.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        table.getTableHeader().setReorderingAllowed(false);
+        table.setFillsViewportHeight(true);
+
+        loadRessources(ressourceDAO, ressourceModel);
+
+        JScrollPane scrollPane = new JScrollPane(table);
+        panel.add(scrollPane, BorderLayout.CENTER);
+
+        // Boutons CRUD
+        JButton addBtn = createStyledButton("Ajouter", new Color(46, 204, 113));
+        JButton editBtn = createStyledButton("Modifier", new Color(52, 152, 219));
+        JButton deleteBtn = createStyledButton("Supprimer", new Color(231, 76, 60));
+
+        // Ajouter
+        addBtn.addActionListener(e -> {
+            JTextField nomField = new JTextField();
+            JTextArea descriptionArea = new JTextArea(4, 20);
+            JTextField quantiteField = new JTextField();
+            String[] etats = {"disponible", "en_panne"};
+            JComboBox<String> etatCombo = new JComboBox<>(etats);
+
+            JPanel form = new JPanel(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5,5,5,5);
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+
+            gbc.gridx = 0; gbc.gridy = 0;
+            form.add(new JLabel("Nom:"), gbc);
+            gbc.gridx = 1;
+            form.add(nomField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 1;
+            form.add(new JLabel("Description:"), gbc);
+            gbc.gridx = 1;
+            JScrollPane scrollDesc = new JScrollPane(descriptionArea);
+            form.add(scrollDesc, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 2;
+            form.add(new JLabel("Quantité:"), gbc);
+            gbc.gridx = 1;
+            form.add(quantiteField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 3;
+            form.add(new JLabel("État:"), gbc);
+            gbc.gridx = 1;
+            form.add(etatCombo, gbc);
+
+            int res = JOptionPane.showConfirmDialog(this, form, "Ajouter Ressource", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (res == JOptionPane.OK_OPTION) {
+                try {
+                    int quantite = Integer.parseInt(quantiteField.getText().trim());
+                    String nom = nomField.getText().trim();
+                    String description = descriptionArea.getText().trim();
+                    String etat = (String) etatCombo.getSelectedItem();
+
+                    if (nom.isEmpty()) {
+                        JOptionPane.showMessageDialog(this, "Le nom est obligatoire", "Erreur", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    Ressource ressource = new Ressource(0, nom, description, quantite, etat);
+                    if (ressourceDAO.insert(ressource)) {
+                        loadRessources(ressourceDAO, ressourceModel);
+                        JOptionPane.showMessageDialog(this, "Ressource ajoutée avec succès", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Erreur lors de l'ajout", "Erreur", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this, "Quantité invalide (doit être un nombre entier)", "Erreur", JOptionPane.ERROR_MESSAGE);
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Erreur SQL: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        // Modifier
+        editBtn.addActionListener(e -> {
+            int selectedRow = table.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(this, "Veuillez sélectionner une ressource à modifier", "Aucune sélection", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int id = (int) ressourceModel.getValueAt(selectedRow, 0);
+            String nom = (String) ressourceModel.getValueAt(selectedRow, 1);
+            String description = (String) ressourceModel.getValueAt(selectedRow, 2);
+            int quantite = (int) ressourceModel.getValueAt(selectedRow, 3);
+            String etat = (String) ressourceModel.getValueAt(selectedRow, 4);
+
+            JTextField nomField = new JTextField(nom);
+            JTextArea descriptionArea = new JTextArea(description, 4, 20);
+            JTextField quantiteField = new JTextField(String.valueOf(quantite));
+            String[] etats = {"disponible", "en_panne"};
+            JComboBox<String> etatCombo = new JComboBox<>(etats);
+            etatCombo.setSelectedItem(etat);
+
+            JPanel form = new JPanel(new GridBagLayout());
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.insets = new Insets(5,5,5,5);
+            gbc.fill = GridBagConstraints.HORIZONTAL;
+
+            gbc.gridx = 0; gbc.gridy = 0;
+            form.add(new JLabel("Nom:"), gbc);
+            gbc.gridx = 1;
+            form.add(nomField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 1;
+            form.add(new JLabel("Description:"), gbc);
+            gbc.gridx = 1;
+            JScrollPane scrollDesc = new JScrollPane(descriptionArea);
+            form.add(scrollDesc, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 2;
+            form.add(new JLabel("Quantité:"), gbc);
+            gbc.gridx = 1;
+            form.add(quantiteField, gbc);
+
+            gbc.gridx = 0; gbc.gridy = 3;
+            form.add(new JLabel("État:"), gbc);
+            gbc.gridx = 1;
+            form.add(etatCombo, gbc);
+
+            int res = JOptionPane.showConfirmDialog(this, form, "Modifier Ressource", JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+            if (res == JOptionPane.OK_OPTION) {
+                try {
+                    int newQuantite = Integer.parseInt(quantiteField.getText().trim());
+                    String newNom = nomField.getText().trim();
+                    String newDesc = descriptionArea.getText().trim();
+                    String newEtat = (String) etatCombo.getSelectedItem();
+
+                    if (newNom.isEmpty()) {
+                        JOptionPane.showMessageDialog(this, "Le nom est obligatoire", "Erreur", JOptionPane.ERROR_MESSAGE);
+                        return;
+                    }
+
+                    Ressource ressourceModifiee = new Ressource(id, newNom, newDesc, newQuantite, newEtat);
+                    if (ressourceDAO.update(ressourceModifiee)) {
+                        loadRessources(ressourceDAO, ressourceModel);
+                        JOptionPane.showMessageDialog(this, "Ressource modifiée avec succès", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Erreur lors de la modification", "Erreur", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (NumberFormatException ex) {
+                    JOptionPane.showMessageDialog(this, "Quantité invalide (doit être un nombre entier)", "Erreur", JOptionPane.ERROR_MESSAGE);
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Erreur SQL: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        // Supprimer
+        deleteBtn.addActionListener(e -> {
+            int selectedRow = table.getSelectedRow();
+            if (selectedRow == -1) {
+                JOptionPane.showMessageDialog(this, "Veuillez sélectionner une ressource à supprimer", "Aucune sélection", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            int id = (int) ressourceModel.getValueAt(selectedRow, 0);
+            String nom = (String) ressourceModel.getValueAt(selectedRow, 1);
+
+            int confirm = JOptionPane.showConfirmDialog(
+                    this,
+                    "Êtes-vous sûr de vouloir supprimer la ressource \"" + nom + "\" ?",
+                    "Confirmation de suppression",
+                    JOptionPane.YES_NO_OPTION);
+
+            if (confirm == JOptionPane.YES_OPTION) {
+                try {
+                    if (ressourceDAO.delete(id)) {
+                        loadRessources(ressourceDAO, ressourceModel);
+                        JOptionPane.showMessageDialog(this, "Ressource supprimée avec succès", "Succès", JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        JOptionPane.showMessageDialog(this, "Erreur lors de la suppression", "Erreur", JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (SQLException ex) {
+                    JOptionPane.showMessageDialog(this, "Erreur SQL: " + ex.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        });
+
+        JPanel footer = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        footer.setBackground(new Color(245, 245, 250));
+        footer.add(addBtn);
+        footer.add(editBtn);
+        footer.add(deleteBtn);
+        panel.add(footer, BorderLayout.SOUTH);
+
+        return panel;
+    }
+
+    // Méthode pour charger les ressources dans le tableau
+    private void loadRessources(RessourceDAO ressourceDAO, DefaultTableModel model) {
+        model.setRowCount(0);
+        try {
+            for (Ressource r : ressourceDAO.getAll()) {
+                model.addRow(new Object[]{r.getId(), r.getNom(), r.getDescription(), r.getQuantite(), r.getEtat()});
+            }
+        } catch (SQLException e) {
+            JOptionPane.showMessageDialog(this, "Erreur lors du chargement des ressources: " + e.getMessage(), "Erreur", JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
 
     private JPanel createReservationsPanel() {
         // Implémentation similaire avec connexion à la base de données

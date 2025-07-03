@@ -70,4 +70,13 @@ public class RessourceDAO {
             return pstmt.executeUpdate() > 0;
         }
     }
+    public boolean changerEtatRessource(int id, String nouvelEtat) throws SQLException {
+        String sql = "UPDATE ressource SET etat = ? WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, nouvelEtat);
+            stmt.setInt(2, id);
+            return stmt.executeUpdate() > 0;
+        }
+    }
 }

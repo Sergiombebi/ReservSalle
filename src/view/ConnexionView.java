@@ -3,6 +3,8 @@ package view;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
+import java.sql.SQLException;
+
 import controller.NavigationController;
 import dao.UtilisateurDAO;
 import model.Utilisateur;
@@ -99,10 +101,18 @@ public class ConnexionView extends JFrame {
                         NavigationController.showAdminAccueil();
                         break;
                     case "demandeur":
-                       // NavigationController.showAccueilUserView();
+                        try {
+                            NavigationController.showDemandeurAccueil(user.getId());
+                        } catch (SQLException ex) {
+                            throw new RuntimeException(ex);
+                        }
                         break;
                     case "responsable":
-                        //NavigationController.showAccueilResponsableView();
+                        try {
+                            NavigationController.showResponsableDashboard(user.getId());
+                        }catch (SQLException ex) {
+                            throw new RuntimeException(ex);
+                        }
                         break;
                 }
             } else {
