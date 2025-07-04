@@ -5,7 +5,7 @@ import java.sql.DriverManager;
 import java.sql.SQLException;
 
 public class DatabaseManager {
-    private static final String URL = "jdbc:mysql://localhost:3306/reservation_salles";
+    private static final String URL = "jdbc:mysql://localhost:3307/reservsalle";
     private static final String USER = "root";
     private static final String PASSWORD = ""; // adapte à ta config
 
